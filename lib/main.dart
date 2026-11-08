@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'models/product.dart';
 import 'services/api_service.dart';
+import 'add_product_screen.dart';
 
 void main() {
   runApp(const PastelStore());
@@ -52,6 +53,12 @@ class _HomeScreenState extends State<HomeScreen> {
       productsFuture = query.trim().isEmpty
           ? apiService.fetchProducts()
           : apiService.searchProducts(query.trim());
+    });
+  }
+
+  void refreshProducts() {
+    setState(() {
+      productsFuture = apiService.fetchProducts();
     });
   }
 
@@ -178,13 +185,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 25),
 
-              const Text(
-                'Our Products',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF51434A),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Our Products',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF51434A),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const AddProductScreen(),
+                        ),
+                      );
+
+                      if (result == true) {
+                        refreshProducts();
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE8AEBB),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 15),
@@ -253,8 +289,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       final product = products[index];
 
                       return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
@@ -263,6 +299,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           );
+
+                          if (result == true) {
+                            refreshProducts();
+                          }
                         },
                         child: Container(
                           decoration: BoxDecoration(
@@ -371,6 +411,64 @@ class ProductDetailScreen extends StatelessWidget {
     required this.product,
   });
 
+  Future<void> deleteProduct(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Hapus Produk?'),
+          content: Text(
+            'Apakah kamu yakin ingin menghapus "${product.title}"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    try {
+      await ApiService().deleteProduct(product.id);
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Produk berhasil dihapus!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus produk: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -379,6 +477,34 @@ class ProductDetailScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFFFF8F5),
         foregroundColor: const Color(0xFF51434A),
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Edit Product',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddProductScreen(
+                    product: product,
+                  ),
+                ),
+              );
+
+              if (result == true && context.mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+            ),
+            tooltip: 'Delete Product',
+            onPressed: () => deleteProduct(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
